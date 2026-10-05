@@ -244,6 +244,10 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);}
 .badge-warn{background:var(--warn-soft);color:var(--warn);}
 .badge-risk{background:var(--risk-soft);color:var(--risk);}
 .badge-neutral{background:var(--surface-3);color:var(--ink-muted);}
+.badge-zero{background:#4a2327;color:#fbe9e7;}
+.band-legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--ink-muted);}
+.band-legend span.k{display:inline-flex;align-items:center;gap:6px;}
+.band-legend i{width:10px;height:10px;border-radius:2px;display:inline-block;}
 .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;}
 
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:2px 7px;border-radius:6px;background:var(--surface-3);color:var(--ink-muted);margin:1px 0;white-space:nowrap;}
@@ -352,7 +356,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);}
       <button class="tab-btn" data-tab="block">Block-wise</button>
       <button class="tab-btn" data-tab="school">School-wise</button>
       <button class="tab-btn" data-tab="student">Student-wise</button>
-      <button class="tab-btn" data-tab="competency">Skill-wise</button>
+      <button class="tab-btn" data-tab="competency">Competency level</button>
       <button class="tab-btn" data-tab="myreport">My Schools</button>
     </nav>
   </div>
@@ -1049,6 +1053,19 @@ function weakestCompetencyForStudent(answers){
   }
   return null; // passed all 10
 }
+// Performance band (per the SSP legend): Saksham >=80%, Pragatisheel 51-79%,
+// Sangharsheel <=50%, Zero Scorer = 0 correct out of 10.
+function performanceBand(r){
+  if(r.correct === 0) return 'zero';
+  if(r.overallPct >= 80) return 'saksham';
+  if(r.overallPct > 50) return 'pragatisheel';
+  return 'sangharsheel';
+}
+var BAND_LABEL = {saksham:'Saksham', pragatisheel:'Pragatisheel', sangharsheel:'Sangharsheel', zero:'Zero Scorer'};
+function bandBadge(b){
+  var cls = b==='saksham' ? 'badge-good' : b==='pragatisheel' ? 'badge-warn' : b==='sangharsheel' ? 'badge-risk' : 'badge-zero';
+  return '<span class="badge '+cls+'">'+BAND_LABEL[b]+'</span>';
+}
 function renderMyReport(allRows){
   var arps = allArpEntries().sort(function(a,b){return a.name.localeCompare(b.name);});
   var months = sortMonths(distinctRounds());
@@ -1089,8 +1106,13 @@ function renderMyReport(allRows){
   var bySchool = groupBy(rows, function(r){return r.school;});
   var schoolNames = Object.keys(bySchool).sort();
 
+  html += '<div class="band-legend">'+
+    '<span class="k"><i style="background:var(--good)"></i>Saksham (&ge; 80%)</span>'+
+    '<span class="k"><i style="background:var(--warn)"></i>Pragatisheel (51&ndash;79%)</span>'+
+    '<span class="k"><i style="background:var(--risk)"></i>Sangharsheel (&le; 50%)</span>'+
+    '<span class="k"><i style="background:#4a2327"></i>Zero Scorer (0 correct)</span></div>';
   html += '<div class="table-scroll"><table><thead><tr>'+
-    '<th>#</th><th>School</th><th>Student</th><th>Weakest competency</th><th>All gaps this month</th>'+
+    '<th>#</th><th>School</th><th>Student</th><th>Performance band</th><th>Weakest competency</th><th>All gaps this month</th>'+
     '<th class="num">Literacy %</th><th class="num">Numeracy %</th><th class="num">Overall %</th><th>Status</th>'+
     '</tr></thead><tbody>';
   var rowNum = 0;
@@ -1100,6 +1122,7 @@ function renderMyReport(allRows){
       var weak = weakestCompetencyForStudent(r.answers);
       var gaps = COMPETENCIES.filter(function(c,i){ return r.answers[i]!==1; }).map(function(c){return c.short;}).join(', ');
       html += '<tr><td class="num">'+rowNum+'</td><td>'+esc(titleCase(sch))+'</td><td class="rowname">'+esc(r.name)+'</td>'+
+        '<td>'+bandBadge(performanceBand(r))+'</td>'+
         '<td>'+(weak ? esc(weak.short)+' <span class="rowmuted">('+esc(weak.hindi)+')</span>' : '<span class="badge badge-good">All competencies passed</span>')+'</td>'+
         '<td class="rowmuted">'+(gaps? esc(gaps) : '&mdash;')+'</td>'+
         '<td class="num">'+round1(r.litPct)+'</td><td class="num">'+round1(r.numPct)+'</td><td class="num">'+Math.round(r.overallPct)+'</td>'+
@@ -1464,11 +1487,11 @@ window.App = {
     } else if(which==='myreport'){
       var sel = state.myReport;
       if(!sel.arp || !sel.round) return;
-      var headers6 = ['School','Student','Weakest Competency','Weakest Competency (Hindi)','All Gaps This Month','Literacy %','Numeracy %','Overall %','Status'];
+      var headers6 = ['School','Student','Performance Band','Weakest Competency','Weakest Competency (Hindi)','All Gaps This Month','Literacy %','Numeracy %','Overall %','Status'];
       var rows6 = (window.__myReportData||[]).map(function(r){
         var weak = weakestCompetencyForStudent(r.answers);
         var gaps = COMPETENCIES.filter(function(c,i){ return r.answers[i]!==1; }).map(function(c){return c.short;}).join(' | ');
-        return [titleCase(r.school), r.name, weak?weak.short:'All competencies passed', weak?weak.hindi:'', gaps||'None', round1(r.litPct), round1(r.numPct), Math.round(r.overallPct), r.cls];
+        return [titleCase(r.school), r.name, BAND_LABEL[performanceBand(r)], weak?weak.short:'All competencies passed', weak?weak.hindi:'', gaps||'None', round1(r.litPct), round1(r.numPct), Math.round(r.overallPct), r.cls];
       });
       var arpName = (state.arps[sel.arp]&&state.arps[sel.arp].name) || sel.arp;
       download('ssp_'+slugify(arpName)+'_'+slugify(sel.round)+'_student_report.csv', tableToCsv(headers6, rows6));
